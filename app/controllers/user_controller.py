@@ -2,11 +2,10 @@ from flask import jsonify, request
 from app.models.user_model import UserModel
 from app.configs.database import db
 from secrets import token_urlsafe
-from app.configs.auth import auth, verify_token
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 
 def create_user():
     data = request.get_json()
-    data['api_key'] = token_urlsafe(16)
 
     user: UserModel = UserModel(**data)
 
@@ -22,17 +21,19 @@ def login_user():
 
     if not user or not user.check_password(data['password']):
         return {"error": "E-mail and/or password incorrect."}, 401
-    
-    return {"api_key": user.api_key}, 200
 
-@auth.login_required
+    token = create_access_token(user)
+
+    return {"access_token": token}, 200
+
+@jwt_required()
 def get_profile():
     
-    user = auth.current_user()
+    user = get_jwt_identity()
 
     return jsonify(user), 200
 
-@auth.login_required
+@jwt_required()
 def update_user():
     data = request.get_json()
 
@@ -46,11 +47,11 @@ def update_user():
 
     return jsonify(user), 200
 
-@auth.login_required
+@jwt_required()
 def delete_user():
-    email_to_del = auth.current_user().email
+    user = get_jwt_identity()
 
-    user: UserModel = UserModel.query.filter_by(email=email_to_del).first()
+    user: UserModel = UserModel.query.filter_by(email=user["email"]).first()
 
     db.session.delete(user)
     db.session.commit()
